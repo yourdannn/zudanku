@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Turbo Circuit X</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080b12;font-family:Arial,sans-serif;touch-action:none}
+canvas{display:block;width:100vw;height:100vh}
+#hud{position:fixed;inset:12px 12px auto;display:flex;justify-content:space-between;z-index:5;color:#fff;pointer-events:none}
+.card{background:linear-gradient(135deg,#111827dd,#030712dd);border:1px solid #ffffff25;border-radius:14px;padding:8px 12px;box-shadow:0 6px 25px #0008;text-shadow:0 2px 3px #000}
+#bar{position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:5;color:#fff;text-align:center;pointer-events:none}
+#mini{width:150px;height:12px;background:#111827;border-radius:20px;overflow:hidden;border:1px solid #ffffff33}
+#nitroFill{height:100%;width:100%;background:linear-gradient(90deg,#00d4ff,#00ff88);transition:.1s}
+#controls{position:fixed;bottom:16px;left:0;right:0;display:flex;justify-content:space-between;padding:0 18px;z-index:6;pointer-events:none}
+.pad{display:flex;gap:9px;pointer-events:auto}
+.btn{width:62px;height:62px;border-radius:18px;border:1px solid #ffffff3a;background:#111827aa;color:#fff;font-size:25px;font-weight:bold;box-shadow:0 7px 20px #0008;backdrop-filter:blur(6px)}
+.btn:active{transform:scale(.94);background:#334155}
+#nitroBtn{font-size:16px;width:80px}
+#message{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#18243caa,#02040acc)}
+.panel{width:min(500px,92%);padding:28px;border-radius:24px;text-align:center;color:#fff;background:linear-gradient(145deg,#111827f5,#05070cf5);border:1px solid #ffffff25;box-shadow:0 20px 80px #000}
+.panel h1{font-size:38px;margin:0 0 5px}
+.panel p{line-height:1.5;color:#cbd5e1}
+button.start{padding:13px 22px;border:0;border-radius:13px;background:#22c55e;color:#06110a;font-weight:800;font-size:17px;cursor:pointer}
+kbd{background:#1e293b;border:1px solid #475569;padding:2px 6px;border-radius:5px}
+@media(max-width:600px){#bar{top:70px}.card{font-size:12px}.panel h1{font-size:30px}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+ <div class="card">🏁 LAP <b id="lap">1/3</b><br>🏎️ <b id="speed">0</b> km/h</div>
+ <div class="card">🏆 <b id="score">0</b><br>🥇 Posisi <b id="pos">4/4</b></div>
+</div>
+<div id="bar">
+ <div style="font-size:12px">⚡ NITRO</div>
+ <div id="mini"><div id="nitroFill"></div></div>
+</div>
+
+<div id="controls">
+ <div class="pad">
+  <button class="btn" id="left">◀</button>
+  <button class="btn" id="right">▶</button>
+ </div>
+ <div class="pad">
+  <button class="btn" id="brake">▼</button>
+  <button class="btn" id="gas">▲</button>
+  <button class="btn" id="nitroBtn">NITRO</button>
+ </div>
+</div>
+
+<div id="message">
+ <div class="panel">
+  <h1>🏎️ TURBO CIRCUIT X</h1>
+  <p>Balapan 3 lap di sirkuit penuh dekorasi. Hindari cone, ban, genangan oli, pagar, dan mobil lawan. Ambil nitro untuk melesat!</p>
+  <p>💻 <kbd>WASD</kbd> / <kbd>↑↓←→</kbd> &nbsp; 📱 Tombol layar</p>
+  <button class="start" onclick="startGame()">MULAI BALAPAN</button>
+ </div>
+</div>
+
+<script>
+const c=document.getElementById('game'),ctx=c.getContext('2d');
+let W,H,D=devicePixelRatio||1;
+function resize(){W=innerWidth;H=innerHeight;c.width=W*D;c.height=H*D;c.style.width=W+'px';c.style.height=H+'px';ctx.setTransform(D,0,0,D,0,0)}
+addEventListener('resize',resize);resize();
+
+const key={up:0,down:0,left:0,right:0,nitro:0};
+addEventListener('keydown',e=>{
+ let k=e.key.toLowerCase();
+ if(k==='w'||k==='arrowup')key.up=1;
+ if(k==='s'||k==='arrowdown')key.down=1;
+ if(k==='a'||k==='arrowleft')key.left=1;
+ if(k==='d'||k==='arrowright')key.right=1;
+ if(k===' '||k==='shift')key.nitro=1;
+});
+addEventListener('keyup',e=>{
+ let k=e.key.toLowerCase();
+ if(k==='w'||k==='arrowup')key.up=0;
+ if(k==='s'||k==='arrowdown')key.down=0;
+ if(k==='a'||k==='arrowleft')key.left=0;
+ if(k==='d'||k==='arrowright')key.right=0;
+ if(k===' '||k==='shift')key.nitro=0;
+});
+function bind(id,k){
+ let b=document.getElementById(id);
+ b.addEventListener('pointerdown',e=>{e.preventDefault();key[k]=1});
+ ['pointerup','pointercancel','pointerleave'].forEach(x=>b.addEventListener(x,e=>{e.preventDefault();key[k]=0}));
+}
+bind('left','left');bind('right','right');bind('gas','up');bind('brake','down');bind('nitroBtn','nitro');
+
+const pts=[
+ [.08,.76],[.06,.53],[.13,.31],[.29,.18],[.49,.12],[.70,.16],
+ [.87,.29],[.91,.48],[.86,.67],[.70,.81],[.49,.88],[.27,.87]
+];
+function P(t){t=(t%1+1)%1;let z=t*pts.length,i=Math.floor(z),f=z-i,a=pts[i],b=pts[(i+1)%pts.length];return{x:(a[0]+(b[0]-a[0])*f)*W,y:(a[1]+(b[1]-a[1])*f)*H}}
+function near(x,y){
+ let best={d:9999,t:0};
+ for(let i=0;i<pts.length;i++){
+  let a=pts[i],b=pts[(i+1)%pts.length],ax=a[0]*W,ay=a[1]*H,bx=b[0]*W,by=b[1]*H;
+  let vx=bx-ax,vy=by-ay,l=vx*vx+vy*vy,u=((x-ax)*vx+(y-ay)*vy)/l;u=Math.max(0,Math.min(1,u));
+  let px=ax+vx*u,py=ay+vy*u,d=Math.hypot(x-px,y-py);
+  if(d<best.d)best={d,t:(i+u)/pts.length};
+ }
+ return best
+}
+let car,ai,objects,boosts,particles,running=false,last=0,shake=0;
+function reset(){
+ let p=P(.015),q=P(.018);
+ car={x:p.x,y:p.y,a:Math.atan2(q.y-p.y,q.x-p.x),v:0,t:.015,lap:1,score:0,nitro:100,oil:0};
+ ai=[.045,.075,.105].map((t,i)=>{let p=P(t),q=P(t+.002);return{x:p.x,y:p.y,a:Math.atan2(q.y-p.y,q.x-p.x),t,lap:1,v:2.4+i*.13,col:['#ff3b4f','#ffb000','#a855f7'][i]}})
+ objects=[];boosts=[];particles=[];
+ for(let i=0;i<32;i++){
+  let t=.055+i*.029,p=P(t),q=P(t+.001);
+  let side=i%2?1:-1, ang=Math.atan2(q.y-p.y,q.x-p.x)+Math.PI/2;
+  let off=side*(34+(i%3)*5);
+  objects.push({x:p.x+Math.cos(ang)*off,y:p.y+Math.sin(ang)*off,type:i%5===0?'oil':i%3===0?'barrier':'cone',hit:0,a:ang})
+ }
+ for(let i=0;i<8;i++){let t=.11+i*.105,p=P(t);boosts.push({x:p.x,y:p.y,used:0})}
+}
+function startGame(){document.getElementById('message').style.display='none';reset();running=true;last=performance.now();requestAnimationFrame(loop)}
+function finish(win){
+ running=false;
+ document.getElementById('message').innerHTML=`<div class="panel"><h1>${win?'🏆 KAMU MENANG!':'🏁 BALAPAN SELESAI'}</h1><p>Skor: <b>${car.score}</b><br>Lap: ${Math.min(car.lap,3)}/3</p><button class="start" onclick="startGame()">MAIN LAGI</button></div>`;
+ document.getElementById('message').style.display='flex'
+}
+function burst(x,y,n=8){
+ for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:.6})
+}
+function update(dt){
+ if(!running)return;
+ let steer=(key.right?1:0)-(key.left?1:0);
+ if(key.up)car.v+=.12;
+ if(key.down)car.v-=.17;
+ car.v*=key.up?.995:.975;
+ car.v=Math.max(0,Math.min(key.nitro&&car.nitro>0?8:5.5,car.v));
+ let n=near(car.x,car.y),grip=Math.max(.2,1-n.d/80);
+ car.a+=steer*.062*(car.v/5.5)*grip;
+ if(car.oil>0){car.a+=(Math.random()-.5)*.035;car.oil-=dt}
+ if(key.nitro&&car.nitro>0){car.v+=.12;car.nitro-=28*dt;burst(car.x-Math.cos(car.a)*18,car.y-Math.sin(car.a)*18,2)}
+ else car.nitro=Math.min(100,car.nitro+4*dt);
+ car.x+=Math.cos(car.a)*car.v*dt*60;car.y+=Math.sin(car.a)*car.v*dt*60;
+ n=near(car.x,car.y);
+ if(n.d>86){car.v*=.9;car.score=Math.max(0,car.score-1)}
+ if(car.t>.84&&n.t<.16){car.lap++;car.score+=500;burst(car.x,car.y,20)}
+ car.t=n.t;
+ for(let o of ai){
+  let p=P(o.t),q=P(o.t+.002);o.x=p.x;o.y=p.y;o.a=Math.atan2(q.y-p.y,q.x-p.x);
+  o.t+=o.v*.000235*dt*60;if(o.t>=1){o.t-=1;o.lap++}
+ }
+ for(let b of boosts)if(!b.used&&Math.hypot(car.x-b.x,car.y-b.y)<24){b.used=1;car.nitro=Math.min(100,car.nitro+35);car.score+=150;burst(b.x,b.y,15)}
+ for(let o of objects)if(Math.hypot(car.x-o.x,car.y-o.y)<25){
+  if(!o.hit){o.hit=1;car.score=Math.max(0,car.score-(o.type==='barrier'?40:20));burst(o.x,o.y,12);shake=8}
+  if(o.type==='oil')car.oil=.8;else car.v*=.66
+ } else o.hit=0;
+ for(let o of ai)if(Math.hypot(car.x-o.x,car.y-o.y)<27){car.v*=.75;burst(car.x,car.y,5);shake=4}
+ for(let p of particles){p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.life-=dt}
+ particles=particles.filter(p=>p.life>0);
+ if(car.lap>3)finish(true);
+ let position=1;
+ for(let o of ai)if(o.lap>car.lap||(o.lap===car.lap&&o.t>car.t))position++;
+ document.getElementById('lap').textContent=Math.min(car.lap,3)+'/3';
+ document.getElementById('speed').textContent=Math.round(car.v*34);
+ document.getElementById('score').textContent=car.score;
+ document.getElementById('pos').textContent=position+'/4';
+ document.getElementById('nitroFill').style.width=car.nitro+'%';
+}
+function road(){
+ ctx.fillStyle='#17251a';ctx.fillRect(0,0,W,H);
+ // patterned grass so there is no empty flat area
+ for(let i=0;i<180;i++){let x=(i*83)%W,y=(i*137)%H;ctx.fillStyle=i%2?'#244b2a':'#1c4024';ctx.beginPath();ctx.arc(x,y,2+(i%3),0,Math.PI*2);ctx.fill()}
+ // grandstands / buildings around the circuit
+ for(let i=0;i<14;i++){let x=(i*137)%W,y=65+(i*91)%Math.max(100,H-150);ctx.fillStyle='#111827';ctx.fillRect(x,y,42,22);ctx.fillStyle='#ef4444';ctx.fillRect(x,y,42,4);ctx.fillStyle='#f8fafc';ctx.fillRect(x+7,y+7,7,7);ctx.fillRect(x+19,y+7,7,7);ctx.fillRect(x+31,y+7,7,7)}
+ ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0]*W,p[1]*H):ctx.moveTo(p[0]*W,p[1]*H));ctx.closePath();
+ ctx.lineJoin='round';ctx.lineWidth=112;ctx.strokeStyle='#cbd5e1';ctx.stroke();
+ ctx.lineWidth=98;ctx.strokeStyle='#252b35';ctx.stroke();
+ ctx.lineWidth=2;ctx.setLineDash([20,20]);ctx.strokeStyle='#facc15';ctx.stroke();ctx.setLineDash([]);
+ // red/white curbs
+ ctx.lineWidth=112;ctx.setLineDash([22,22]);ctx.strokeStyle='#ef4444';ctx.stroke();ctx.lineWidth=102;ctx.strokeStyle='#f8fafc';ctx.stroke();ctx.setLineDash([]);
+ ctx.lineWidth=98;ctx.strokeStyle='#252b35';ctx.stroke();
+ // start grid
+ let p=P(0),q=P(.008),a=Math.atan2(q.y-p.y,q.x-p.x);
+ ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a+Math.PI/2);
+ for(let r=-2;r<3;r++)for(let s=-1;s<2;s++){ctx.fillStyle=(r+s)%2?'#111':'#fff';ctx.fillRect(r*18,s*18,18,18)}
+ ctx.restore();
+}
+function carDraw(x,y,a,col,main=false){
+ ctx.save();ctx.translate(x,y);ctx.rotate(a);
+ ctx.shadowBlur=12;ctx.shadowColor='#000a';
+ ctx.fillStyle='#090b10';ctx.fillRect(-15,-13,8,6);ctx.fillRect(7,-13,8,6);ctx.fillRect(-15,7,8,6);ctx.fillRect(7,7,8,6);
+ ctx.fillStyle=col;ctx.beginPath();ctx.roundRect(-18,-10,36,20,6);ctx.fill();
+ ctx.fillStyle='#8bd5ff';ctx.beginPath();ctx.roundRect(-8,-7,15,14,4);ctx.fill();
+ ctx.fillStyle='#fff';ctx.fillRect(13,-6,4,4);ctx.fillRect(13,2,4,4);
+ if(main){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(-18,-10,36,20)}
+ ctx.restore();
+}
+function draw(){
+ ctx.save();
+ if(shake>0){ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.88}
+ road();
+ for(let b of boosts)if(!b.used){ctx.shadowBlur=18;ctx.shadowColor='#00e5ff';ctx.fillStyle='#00e5ff';ctx.beginPath();ctx.arc(b.x,b.y,10,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#fff';ctx.font='16px Arial';ctx.fillText('⚡',b.x-7,b.y+6)}
+ for(let o of objects){
+  ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.a);
+  if(o.type==='oil'){ctx.fillStyle='#090b12dd';ctx.beginPath();ctx.ellipse(0,0,22,11,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#33415588';ctx.beginPath();ctx.ellipse(-6,-2,8,3,0,0,Math.PI*2);ctx.fill()}
+  else if(o.type==='barrier'){ctx.fillStyle='#f8fafc';ctx.fillRect(-22,-8,44,16);ctx.fillStyle='#ef4444';for(let i=-18;i<20;i+=12)ctx.fillRect(i,-8,7,16)}
+  else{ctx.fillStyle='#f97316';ctx.beginPath();ctx.moveTo(0,-14);ctx.lineTo(12,11);ctx.lineTo(-12,11);ctx.closePath();ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(-8,0,16,4)}
+  ctx.restore()
+ }
+ for(let o of ai)carDraw(o.x,o.y,o.a,o.col);
+ carDraw(car.x,car.y,car.a,key.nitro&&car.nitro>0?'#00e5ff':'#22c55e',true);
+ for(let p of particles){ctx.globalAlpha=Math.max(0,p.life*1.8);ctx.fillStyle='#fde047';ctx.fillRect(p.x,p.y,4,4);ctx.globalAlpha=1}
+ ctx.restore()
+}
+function loop(t){let dt=Math.min(.035,(t-last)/1000);last=t;update(dt);draw();if(running)requestAnimationFrame(loop)}
+reset();draw();
+</script>
+</body>
+</html>
